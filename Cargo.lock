@@ -660,6 +660,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "victory-ffi"
+version = "0.1.0"
+dependencies = [
+ "victory-shader",
+]
+
+[[package]]
 name = "victory-formats"
 version = "0.1.0"
 

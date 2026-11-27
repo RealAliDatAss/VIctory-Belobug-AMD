@@ -26,6 +26,25 @@ impl Console {
         }
     }
 
+    /// Effective title-visible memory budgets `(gpu_optimal, standard)` in
+    /// bytes. Defaults to [`Self::title_memory`], or expands when
+    /// `VICTORY_TITLE_VRAM_MB` / `VICTORY_TITLE_RAM_MB` are set (e.g. on
+    /// 24 GB VRAM + 96 GB RAM PCs where 13.5 GB causes false OOM pressure).
+    pub fn effective_title_memory(self) -> (usize, usize) {
+        let (base_gpu, base_std) = self.title_memory();
+        let gpu = std::env::var("VICTORY_TITLE_VRAM_MB")
+            .ok()
+            .and_then(|v| v.trim().parse::<usize>().ok())
+            .filter(|&mb| mb > 0)
+            .map_or(base_gpu, |mb| mb << 20);
+        let std_mem = std::env::var("VICTORY_TITLE_RAM_MB")
+            .ok()
+            .and_then(|v| v.trim().parse::<usize>().ok())
+            .filter(|&mb| mb > 0)
+            .map_or(base_std, |mb| mb << 20);
+        (gpu, std_mem)
+    }
+
     pub const fn name(self) -> &'static str {
         match self {
             Console::SeriesX => "Xbox Series X",

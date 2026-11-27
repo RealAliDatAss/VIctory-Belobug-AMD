@@ -16,6 +16,7 @@ const MAX_ENCODED_RUN: usize = 512;
 
 const ALLOWED_EXTENSIONS: &[&str] = &[
     "rs", "toml", "md", "txt", "lock", "yml", "yaml", "json", "hlsl", "hlsli", "ps1", "cmd", "sh",
+    "c", "cpp", "h", "hpp", "cmake",
 ];
 const ALLOWED_NAMES: &[&str] = &[
     ".gitignore",
@@ -23,6 +24,7 @@ const ALLOWED_NAMES: &[&str] = &[
     ".editorconfig",
     ".victory-root",
     "pre-commit",
+    "CMakeLists.txt",
     "LICENSE",
     "LICENSE-MIT",
     "LICENSE-APACHE",
