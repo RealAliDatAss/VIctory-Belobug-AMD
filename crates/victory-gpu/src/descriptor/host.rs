@@ -4905,7 +4905,7 @@ mod changed_records_tests {
 /// part of it each shows.
 fn same_placed_texture(a: &View, b: &View) -> bool {
     match (a, b) {
-        (View::Placed(false, resource, desc), View::Placed(false, other, other_desc)) => {
+        (View::Placed(u1, resource, desc), View::Placed(u2, other, other_desc)) if u1 == u2 => {
             // (Words 1 and 13 are the filler of the description's layout, not
             // part of what a texture is: `crate::resource::texture_at`.)
             let same = |from: usize, to: usize| resource[from..to] == other[from..to];
@@ -4915,11 +4915,11 @@ fn same_placed_texture(a: &View, b: &View) -> bool {
     }
 }
 
-/// A shader view of a texture the title placed in memory itself, as a view
+/// A shader or unordered access view of a texture the title placed in memory itself, as a view
 /// of the resource made for that memory (on first use).
 pub(crate) fn placed_texture(view: &View) -> Option<View> {
     const BUFFER: u32 = 1;
-    let View::Placed(false, resource, desc) = view else {
+    let View::Placed(unordered, resource, desc) = view else {
         return None;
     };
     if resource[0] == BUFFER {
@@ -4927,8 +4927,12 @@ pub(crate) fn placed_texture(view: &View) -> Option<View> {
     }
     let address = u64::from(desc[10]) | u64::from(desc[11]) << 32;
     let texture = crate::resource::texture_at(address, resource)?;
-    crate::resource::want_level(texture, crate::resource::first_mip(desc));
-    Some(View::Shader(texture as usize, desc[..10].try_into().ok()))
+    if !*unordered {
+        crate::resource::want_level(texture, crate::resource::first_mip(desc));
+        Some(View::Shader(texture as usize, desc[..10].try_into().ok()))
+    } else {
+        Some(View::Unordered(texture as usize, 0, desc[..10].try_into().ok()))
+    }
 }
 
 /// A null view of the kind `view` is, for a slot whose view the host

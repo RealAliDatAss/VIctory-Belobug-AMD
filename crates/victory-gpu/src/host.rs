@@ -2076,11 +2076,15 @@ impl<T> Spare<T> {
 /// Scratch chunks no list holds.
 static SPARE: Mutex<Spare<Chunk>> = Mutex::new(Spare::new());
 
+/// Whether list scratch chunks try `D3D12_HEAP_TYPE_GPU_UPLOAD` (ReBAR)
+/// before system-RAM `UPLOAD` (`VICTORY_SCRATCH_BAR=1`; off by default so CPU
+/// writes do not pay PCIe write-combine latency and spare chunks do not use VRAM).
+fn scratch_bar() -> bool {
+    static ON: OnceLock<bool> = OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("VICTORY_SCRATCH_BAR").is_some_and(|v| v == "1"))
+}
+
 /// A scratch chunk of `size` bytes: one kept ([`SPARE`]) or a new one.
-/// When the card has CPU-mappable memory (`D3D12_HEAP_TYPE_GPU_UPLOAD`,
-/// resizable BAR), scratch chunks are placed there: shaders read them at
-/// VRAM speed instead of across the PCIe bus. On RTX 4090 this is 4521 GB/s
-/// vs 170 GB/s for `D3D12_HEAP_TYPE_UPLOAD` (write-combine system RAM).
 fn take_chunk(host: &Host, size: u64) -> Option<Chunk> {
     if scratch_pool()
         && let Some(chunk) = SPARE.lock().unwrap_or_else(|e| e.into_inner()).take(size)
@@ -2090,12 +2094,11 @@ fn take_chunk(host: &Host, size: u64) -> Option<Chunk> {
         ALIVE[5].fetch_add(1, Ordering::Relaxed);
         return Some(chunk);
     }
-    // Prefer GPU_UPLOAD (ReBAR) when available: the CPU writes through the
-    // bus as before, but shaders read from VRAM — no PCIe round-trip per
-    // cacheline. `written: false` because scratch is CPU-write / GPU-read.
-    let (buffer, data) = host
-        .mapped_card_buffer(size, false)
-        .or_else(|| host.upload_buffer(size))?;
+    let (buffer, data) = if scratch_bar() {
+        host.mapped_card_buffer(size, false).or_else(|| host.upload_buffer(size))?
+    } else {
+        host.upload_buffer(size)?
+    };
     name(&buffer, || "list scratch".into());
     ALIVE[1].fetch_add(1, Ordering::Relaxed);
     ALIVE[2].fetch_add(size, Ordering::Relaxed);
