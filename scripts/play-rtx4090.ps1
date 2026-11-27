@@ -40,16 +40,16 @@ $settings = @{
 
     # === RTX 4090 Specific: GPU_UPLOAD ReBAR & 24 GB VRAM Budgets ===
     # 24 GB VRAM (23,370 MB DXGI budget) + 96 GB DDR5 (48,211 MB shared)
-    VICTORY_WINDOWS_BAR_MB      = '8192'
-    VICTORY_CARD_BUFFERS_MB     = '8192'
-    VICTORY_MEMORY_CARD_MB      = '8192'
-    VICTORY_CARD_ROOM_FOR_TARGETS_MB = '4096'
-    VICTORY_TEXTURE_ROOM_PERCENT = '90'
+    VICTORY_WINDOWS_BAR_MB      = '4096'
+    VICTORY_CARD_BUFFERS_MB     = '4096'
+    VICTORY_MEMORY_CARD_MB      = '4096'
+    VICTORY_CARD_ROOM_FOR_TARGETS_MB = '2048'
+    VICTORY_TEXTURE_ROOM_PERCENT = '75'
     VICTORY_KEEP_FREED          = '1'
 
-    # === Expanded Console Memory Budget (vs Series X 10 + 3.5 GB) ===
-    VICTORY_TITLE_VRAM_MB       = '20480'
-    VICTORY_TITLE_RAM_MB        = '16384'
+    # === Expanded Console Memory Budget (conservative: avoid system RAM pressure) ===
+    VICTORY_TITLE_VRAM_MB       = '16384'
+    VICTORY_TITLE_RAM_MB        = '8192'
 
     # === Wave32 (NVIDIA native) ===
     VICTORY_HOST_WAVE           = '32'
