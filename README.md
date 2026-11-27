@@ -1,12 +1,15 @@
-# VIctory on an RX 7900 XTX
+# nVIctory-RTX
 
-A fork of [VIctory](https://github.com/Marvisak/VIctory), a compatibility layer
-that runs an Xbox Series title natively on Windows from files the user supplies.
+A fork of [VIctory-Belobug-AMD](https://github.com/Belobug/VIctory-Belobug-AMD),
+itself a fork of [VIctory](https://github.com/Marvisak/VIctory), a compatibility
+layer that runs an Xbox Series title natively on Windows from files the user supplies.
+
+**This fork targets NVIDIA GeForce RTX GPUs** (RTX 4090 primary, RTX 30/40/50 series).
 
 ## The goal
 
-**A stable 30 fps or more without ray tracing, then as high a frame rate and as
-low frame times as the PC allows**, on an AMD RX 7900 XTX first and on PCs with
+**A stable 30 fps or more with ray tracing, then as high a frame rate and as
+low frame times as the PC allows**, on an NVIDIA RTX 4090 first and on PCs with
 32 GB (later 16 GB) of RAM.
 
 The way there is **porting, not emulating**: patching the title's renderer so it
@@ -92,10 +95,40 @@ tools, and your own dump of the title.
 ```powershell
 git clone https://github.com/avatarmanz/VIctory-7900XTX
 cd VIctory-7900XTX
+git checkout nVIctory-RTX
 copy victory.example.toml victory.toml      # then set your paths, outside this folder
 cargo build --locked --profile diag -p victory --features diagnostics
 scripts\play.ps1 -Exe <path of your copy's executable>
 ```
+
+### NVIDIA RTX Quick Start
+
+For RTX 4090 (or other RTX GPUs), use the optimized launch script instead:
+
+```powershell
+# Build release (no diagnostics overhead)
+cargo build --release -p victory
+
+# Translate shaders once (caches 25,787 shaders)
+$env:VICTORY_HOST_WAVE = '32'; $env:VICTORY_HOST_RDNA = '0'
+target\release\victory.exe shaders --jobs 16
+
+# Launch with RTX 4090 optimizations
+.\scripts\play-rtx4090.ps1 -Exe "P:\torr\GTA VI v1.0.2.1\game_scarlett_master.exe"
+
+# With HUD overlay
+.\scripts\play-rtx4090.ps1 -Exe "..." -Hud
+
+# With performance measurement
+.\scripts\play-rtx4090.ps1 -Exe "..." -Measure
+```
+
+Key NVIDIA-specific settings set by the script:
+- `VICTORY_HOST_VENDOR=nvidia` — reports NVIDIA to the title's DXGI adapter query
+- `VICTORY_HOST_WAVE=32` / `VICTORY_HOST_RDNA=0` — NVIDIA native wave size
+- `VICTORY_BVH_BUILDER=1` — hardware ray tracing (RTX cores)
+- `VICTORY_TITLE_VRAM_MB=20480` — expanded VRAM budget for 24 GB cards
+- `VICTORY_SEND_BAR=1` — GPU_UPLOAD via ReBAR (reads at ~4500 GB/s)
 
 The launcher requests light device removal diagnostics (DRED) by default with
 `-Build diag`. DRED requires `--features diagnostics`. For a release binary

@@ -140,21 +140,70 @@ struct AdapterDescription {
 const _: () = assert!(size_of::<AdapterDescription>() == 0x130);
 
 const AMD: u32 = 0x1002;
+const NVIDIA: u32 = 0x10DE;
+const INTEL: u32 = 0x8086;
+
+/// The vendor id the title sees through DXGI.
+///
+/// `VICTORY_HOST_VENDOR=nvidia` / `amd` / `intel` / a hex id (`0x10DE`)
+/// overrides auto-detection. The default queries the host GPU's real vendor
+/// through the DXGI factory (see [`crate::indirect::amd`]), so an NVIDIA
+/// host reports NVIDIA and an AMD host reports AMD.
+fn host_vendor() -> u32 {
+    use std::sync::OnceLock;
+    static VENDOR: OnceLock<u32> = OnceLock::new();
+    *VENDOR.get_or_init(|| {
+        if let Ok(v) = std::env::var("VICTORY_HOST_VENDOR") {
+            let id = match v.to_ascii_lowercase().as_str() {
+                "amd" => AMD,
+                "nvidia" | "nv" => NVIDIA,
+                "intel" => INTEL,
+                hex if hex.starts_with("0x") => u32::from_str_radix(&hex[2..], 16).unwrap_or(AMD),
+                _ => AMD,
+            };
+            tracing::info!(vendor = format_args!("{id:#06x}"), from = %v, "DXGI adapter vendor (override)");
+            return id;
+        }
+        // Auto-detect from the host GPU.
+        let id = detect_host_vendor().unwrap_or(AMD);
+        tracing::info!(vendor = format_args!("{id:#06x}"), "DXGI adapter vendor (auto-detected)");
+        id
+    })
+}
+
+/// Query the first D3D12-capable adapter's vendor id from the host DXGI factory.
+fn detect_host_vendor() -> Option<u32> {
+    use windows::Win32::Graphics::Dxgi::{CreateDXGIFactory2, DXGI_CREATE_FACTORY_FLAGS, IDXGIAdapter1, IDXGIFactory4};
+    // SAFETY: plain COM queries.
+    unsafe {
+        let factory: IDXGIFactory4 = CreateDXGIFactory2(DXGI_CREATE_FACTORY_FLAGS(0)).ok()?;
+        let adapter: IDXGIAdapter1 = factory.EnumAdapters1(0).ok()?;
+        let desc = adapter.GetDesc1().ok()?;
+        Some(desc.VendorId)
+    }
+}
 
 extern "system" fn adapter_description(_: This, out: *mut AdapterDescription) -> HRESULT {
     if out.is_null() {
         return E_INVALIDARG;
     }
+    let vendor = host_vendor();
+    let label = match vendor {
+        NVIDIA => "VIctory NVIDIA GPU",
+        AMD => "VIctory AMD GPU",
+        INTEL => "VIctory Intel GPU",
+        _ => "VIctory console GPU",
+    };
     let mut name = [0; 128];
-    for (slot, unit) in name.iter_mut().zip("VIctory console GPU".encode_utf16()) {
+    for (slot, unit) in name.iter_mut().zip(label.encode_utf16()) {
         *slot = unit;
     }
     // shortcut: memory sizes are the title's split (GPU-optimal, standard),
     // not measured; revisit once memory is emulated.
-    let (gpu_optimal, standard) = crate::console::current().title_memory();
+    let (gpu_optimal, standard) = crate::console::current().effective_title_memory();
     let description = AdapterDescription {
         name,
-        vendor: AMD,
+        vendor,
         device: 0,
         subsystem: 0,
         revision: 0,
@@ -331,7 +380,7 @@ mod tests {
             S_OK
         );
         // SAFETY: written above.
-        assert_eq!(unsafe { description.assume_init() }.vendor, AMD);
+        assert_eq!(unsafe { description.assume_init() }.vendor, host_vendor());
 
         let mut factory = std::ptr::null();
         let parent = slot::<Query>(adapter, 0x30);
